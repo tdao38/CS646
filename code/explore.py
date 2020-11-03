@@ -7,14 +7,15 @@ import numpy as np
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import average_precision_score
 from collections import Counter
 
 
 # Read in the data
-qrels = pd.read_csv('trec-covid-information-retrieval/qrels.csv')
-topics = pd.read_csv('trec-covid-information-retrieval/topics-rnd3.csv')
-metadata = pd.read_csv('trec-covid-information-retrieval/CORD-19/CORD-19/metadata.csv')
-embeddings = pd.read_csv('trec-covid-information-retrieval/CORD-19/CORD-19/cord_19_embeddings_2020-05-19.csv')
+qrels = pd.read_csv(r'C:\Users\micha\OneDrive\fall2020\646\trec-covid-information-retrieval\qrels.csv')
+topics = pd.read_csv(r'C:\Users\micha\OneDrive\fall2020\646\trec-covid-information-retrieval\topics-rnd3.csv')
+metadata = pd.read_csv(r'C:\Users\micha\OneDrive\fall2020\646\trec-covid-information-retrieval\CORD-19\CORD-19\metadata.csv')
+embeddings = pd.read_csv(r'C:\Users\micha\OneDrive\fall2020\646\trec-covid-information-retrieval\CORD-19\CORD-19\cord_19_embeddings_2020-05-19.csv')
 
 def preprocess(text):
     print('preprocessing: ', text)
@@ -60,7 +61,7 @@ for i in range(metadata.shape[0]):
     metadata.loc[i, 'processed_abstract'] = processed_text
 
 for i in range(topics.shape[0]):
-    text = topics.loc[i, 'query']
+    text = topics.loc[i, 'narrative']
     # Only proceed with non-na cases
     if pd.isna(text):
         continue
@@ -78,7 +79,7 @@ cosine = cosine_similarity(query_vecs, doc_vecs)
 #index of largest cosine similarity:
 results_all = pd.DataFrame()
 for i in range(topics.shape[0]):
-    idx = np.flip(np.argsort(cosine[i]))[:100]
+    idx = np.flip(np.argsort(cosine[i]))[:1000]
     cosine_scores = pd.Series(cosine[i][idx])
     cosine_docs = metadata.loc[idx]['cord_uid'].reset_index(drop=True)
     results = pd.DataFrame()
@@ -115,14 +116,32 @@ for i in range(topics.shape[0]):
     else:
         results_all_tf_idf = pd.concat([results_all_tf_idf, results])
 
-# State of the art VSM
-# dl = doc_vecs.sum(axis = 1)
-# df = doc_vecs.sum(axis = 0)
-# avdl = dl.sum()/dl.shape[0]
-# C = dl.shape[0]
-# top = np.log(1 + np.log(1 + doc_vecs.toarray()))
-# bottom = 1-0.5 + 0.5*(dl/avdl)
-#
-# query_vecs[0] * top/bottom * np.log((C+1)/df)
 
-# BM25
+
+#change all 'judgements' from 2 -> 1 for simplicity sake
+qrels['judgement'] = qrels['judgement'].replace([2],1)
+
+#function to calculate MAP
+def map_results_all(val):
+    ap = pd.DataFrame()
+    topic = 1
+    for x in results_all_tf_idf['topic-id'].unique():
+        cols = ['topic-id','iteration','cosine_doc','judgement']
+        topic_qrels = qrels.loc[qrels['topic-id'] == x]
+        results = results_all_tf_idf[results_all_tf_idf['topic-id'] == x]
+        topic_qrels.columns = cols #change topic_qrels column name to make left join easier
+        rel_judgement = results.merge(topic_qrels, on=['cosine_doc'], how = 'left')
+        rel_judgement_map = rel_judgement.head(val)
+        average_precision = rel_judgement_map['judgement'].sum() / val
+        average_precision_ser = pd.Series(average_precision) #convert np to series
+        average_precision_df = pd.DataFrame(average_precision_ser) #convert series to df to append
+        ap = ap.append(average_precision_df)
+
+    map = ap.sum() / len(ap.index)
+    return map
+
+map_results_all(30)
+
+
+
+
