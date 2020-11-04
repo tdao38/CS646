@@ -4,6 +4,7 @@ import nltk
 import string
 import pandas as pd
 import numpy as np
+from datetime import datetime
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -102,7 +103,7 @@ cosine = cosine_similarity(doc_vecs_tf_idf, query_vecs_tf_idf)
 #index of largest cosine similarity:
 results_all_tf_idf = pd.DataFrame()
 for i in range(topics.shape[0]):
-    idx = np.flip(np.argsort(cosine[i]))[:100]
+    idx = np.flip(np.argsort(cosine[i]))[:1000]
     cosine_scores = pd.Series(cosine[i][idx])
     cosine_docs = metadata.loc[idx]['cord_uid'].reset_index(drop=True)
     results = pd.DataFrame()
@@ -122,13 +123,13 @@ for i in range(topics.shape[0]):
 qrels['judgement'] = qrels['judgement'].replace([2],1)
 
 #function to calculate MAP
-def map_results_all(val):
+def map_results_all(val, df):
     ap = pd.DataFrame()
     topic = 1
     for x in results_all_tf_idf['topic-id'].unique():
         cols = ['topic-id','iteration','cosine_doc','judgement']
         topic_qrels = qrels.loc[qrels['topic-id'] == x]
-        results = results_all_tf_idf[results_all_tf_idf['topic-id'] == x]
+        results = df[df['topic-id'] == x]
         topic_qrels.columns = cols #change topic_qrels column name to make left join easier
         rel_judgement = results.merge(topic_qrels, on=['cosine_doc'], how = 'left')
         rel_judgement_map = rel_judgement.head(val)
@@ -140,8 +141,11 @@ def map_results_all(val):
     map = ap.sum() / len(ap.index)
     return map
 
-map_results_all(30)
 
+start = datetime.now()
+map_results_all(30,results_all)
+end = datetime.now()
+print(end - start)
 
 
 
