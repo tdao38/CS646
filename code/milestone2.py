@@ -17,6 +17,7 @@ topics = pd.read_csv('trec-covid-information-retrieval/topics-rnd3.csv')
 # metadata = pd.read_csv('trec-covid-information-retrieval/CORD-19/CORD-19/metadata.csv')
 metadata = pd.read_csv('trec-covid-information-retrieval/CORD-19/CORD-19/metadata_preprocessed.csv')
 embeddings = pd.read_csv('trec-covid-information-retrieval/CORD-19/CORD-19/cord_19_embeddings_2020-05-19.csv')
+topics_expanded = pd.read_csv('topics_expanded.csv')
 
 metadata = metadata.dropna(subset=['processed_abstract']).reset_index()
 
@@ -68,20 +69,30 @@ def preprocess(text):
 #
 # metadata.to_csv('trec-covid-information-retrieval/CORD-19/CORD-19/metadata_preprocessed.csv')
 
+# for i in range(topics.shape[0]):
+#     text = topics.loc[i, 'narrative']
+#     # Only proceed with non-na cases
+#     if pd.isna(text):
+#         continue
+#     processed_text = preprocess(text)
+#     # Save to df
+#     topics.loc[i, 'processed_query'] = processed_text
+
 for i in range(topics.shape[0]):
-    text = topics.loc[i, 'narrative']
+    text = topics_expanded.loc[i, 'query_expansion_wn_mesh']
     # Only proceed with non-na cases
     if pd.isna(text):
         continue
     processed_text = preprocess(text)
     # Save to df
-    topics.loc[i, 'processed_query'] = processed_text
+    topics_expanded.loc[i, 'processed_query'] = processed_text
 
 # COUNT EMBEDDING
 cv_start = datetime.now()
 cv = CountVectorizer()
-doc_vecs = cv.fit_transform(metadata['processed_abstract'])
-query_vecs = cv.transform(topics['processed_query'])
+doc_vecs = cv.fit_transform(metadata['processed_abstract'].values.astype('U'))
+# query_vecs = cv.transform(topics['processed_query'])
+query_vecs = cv.transform(topics_expanded['processed_query'])
 cv_end = datetime.now()
 
 cosine = cosine_similarity(query_vecs, doc_vecs)
@@ -107,7 +118,7 @@ cv_cosine_end = datetime.now()
 
 # TF-IDF
 tf_idf = TfidfVectorizer()
-doc_vecs_tf_idf = tf_idf.fit_transform(metadata['processed_abstract'])
+doc_vecs_tf_idf = tf_idf.fit_transform(metadata['processed_abstract'].values.astype('U'))
 query_vecs_tf_idf = tf_idf.transform(topics['processed_query'])
 
 cosine_tf_idf = cosine_similarity(query_vecs_tf_idf, doc_vecs_tf_idf)
@@ -230,7 +241,12 @@ def map_results_all(val, df):
 
 start = datetime.now()
 
+map_results_all(10,results_all)
+map_results_all(20,results_all)
 map_results_all(30,results_all)
+map_results_all(10,results_all_tf_idf)
+map_results_all(20,results_all_tf_idf)
+map_results_all(30,results_all_tf_idf)
 
 map_results_all(10, results_bm25)
 map_results_all(20, results_bm25)
@@ -239,3 +255,42 @@ map_results_all(100, results_bm25)
 
 end = datetime.now()
 print(end - start)
+
+#############
+# import Bio
+# from Bio import Entrez, SeqIO
+# from Bio import Medline
+# from nltk.corpus import wordnet as wn
+#
+# Entrez.email = "tdao@umass.edu"
+# handle = Entrez.esearch(db="pubmed", term="covid")
+# record = Entrez.read(handle)
+#
+# record["DbList"]['pubmed']
+#
+# Entrez.esearch(db="pubmed", term="covid")
+#
+# handle = Entrez.efetch(db="pubmed", id='11472636', retmode="xml")
+# print(handle.read())
+#
+# record = Entrez.read(Entrez.elink(dbfrom="pubmed", id='11472636'))
+# for link in record[0]["LinkSetDb"][0]["Link"]:
+#     print(link["Id"])
+#
+# synset = wn.synsets("dog")
+#
+# ['coronavirus', 'covid19', 'sars20']
+#
+# handle = Entrez.efetch(db="pubmed", id='14499001', rettype="medline", retmode="text")
+# records = Medline.parse(handle)
+# for record in records:
+#     meshs = record.get("MH")
+#     print(meshs)
+#
+#
+# synonyms = []
+# for syn in wn.synsets("origin"):
+#     for l in syn.lemmas():
+#         synonyms.append(l.name())
+#
+# list(set(synonyms))
